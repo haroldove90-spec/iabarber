@@ -1,0 +1,7 @@
+{
+  "name": "Asesor de Estilo de Barbería con IA",
+  "description": "Una aplicación impulsada por IA que analiza la forma de tu rostro para recomendar y visualizar el corte de pelo perfecto para ti. Sube una foto, obtén sugerencias de estilo personalizadas y ve una vista previa virtual de tu nuevo look.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
