@@ -58,24 +58,25 @@ export const BookingProvider: React.FC<{ children: React.ReactNode }> = ({ child
         throw new Error("Faltan detalles para confirmar la cita.");
     }
 
-    const customer = await db.addOrUpdateCustomer(details.customer);
-
-    const newAppointment: Omit<Appointment, 'id'> = {
+    const customer = db.addOrUpdateCustomer(details.customer);
+    
+    db.addAppointment({
         service: details.service,
         barber: details.barber,
         date: details.date,
         time: details.time,
         customerId: customer.id,
-    };
-    await db.addAppointment(newAppointment);
-
+    });
+    
     // Simular envío de correo
     console.log("--- SIMULACIÓN DE CORREO ---");
-    console.log(`Para: ${customer.email}`);
+    console.log(`Para: ${details.customer.email}`);
     console.log(`Asunto: Confirmación de tu cita en AI Barber`);
-    console.log(`Hola ${customer.name},`);
+    console.log(`Hola ${details.customer.name},`);
     console.log(`Tu cita está confirmada para el ${details.date.toLocaleDateString()} a las ${details.time} con ${details.barber.name}.`);
     console.log("--------------------------");
+
+    return Promise.resolve();
 
   }, []);
   

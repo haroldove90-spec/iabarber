@@ -1,102 +1,144 @@
-import type { Appointment, Customer, InventoryItem, GalleryImage } from '../types';
+import type { Appointment, Customer, InventoryItem, GalleryImage, Service } from '../types';
 import { services, barbers } from './barbershopData';
 
-// Mock Data
-let customers: Customer[] = [
-    { id: 1, name: 'John Doe', email: 'john.doe@email.com', phone: '555-111-2222' },
-    { id: 2, name: 'Jane Smith', email: 'jane.smith@email.com', phone: '555-333-4444' },
-];
-
-let appointments: Appointment[] = [
-    {
-        id: 1,
-        service: services[0],
-        barber: barbers[1],
-        date: new Date(new Date().setDate(new Date().getDate() + 3)),
-        time: '10:00',
-        customerId: 1,
-    },
-    {
-        id: 2,
-        service: services[2],
-        barber: barbers[0],
-        date: new Date(new Date().setDate(new Date().getDate() + 5)),
-        time: '15:00',
-        customerId: 2,
-    },
-    {
-        id: 3,
-        service: services[0],
-        barber: barbers[1],
-        date: new Date(new Date().setDate(new Date().getDate() - 2)),
-        time: '11:00',
-        customerId: 2,
-    },
-    {
-        id: 4,
-        service: services[4],
-        barber: barbers[3],
-        date: new Date(new Date().setDate(new Date().getDate() - 10)),
-        time: '16:00',
-        customerId: 1,
+interface DB {
+    customers: Customer[];
+    appointments: Appointment[];
+    inventory: InventoryItem[];
+    gallery: GalleryImage[];
+    nextIds: {
+        customer: number;
+        appointment: number;
+        inventory: number;
+        gallery: number;
     }
-];
+}
 
-let inventory: InventoryItem[] = [
-    { id: 1, name: 'Pomada Fijación Fuerte', brand: 'Reuzel', category: 'Styling', stock: 15, lowStockThreshold: 5 },
-    { id: 2, name: 'Aceite para Barba', brand: 'Proraso', category: 'Cuidado Barba', stock: 8, lowStockThreshold: 4 },
-    { id: 3, name: 'Champú Anticaída', brand: 'Nioxin', category: 'Cuidado Cabello', stock: 3, lowStockThreshold: 5 },
-];
+let db: DB;
 
-let gallery: GalleryImage[] = [
-    { id: 1, src: 'https://picsum.photos/seed/hair1/500/500', alt: 'Corte de pelo moderno', barberName: 'Benjamin Carter' },
-    { id: 2, src: 'https://picsum.photos/seed/hair2/500/500', alt: 'Degradado clásico', barberName: 'Alex "The Razor" Russo' },
-    { id: 3, src: 'https://picsum.photos/seed/hair3/500/500', alt: 'Diseño de pelo creativo', barberName: 'Carlos "Los" Ramirez' },
-    { id: 4, src: 'https://picsum.photos/seed/hair4/500/500', alt: 'Corte largo texturizado', barberName: 'David Chen' },
-];
+const saveDb = () => {
+    try {
+        localStorage.setItem('aiBarberDb', JSON.stringify(db));
+    } catch (e) {
+        console.error("Failed to save to localStorage", e);
+    }
+}
 
-let nextCustomerId = 3;
-let nextAppointmentId = 5;
-let nextInventoryId = 4;
-let nextGalleryId = 5;
+const loadDb = () => {
+    try {
+        const storedDb = localStorage.getItem('aiBarberDb');
+        if (storedDb) {
+            const parsedDb = JSON.parse(storedDb);
+            // Dates are stored as strings, need to convert them back
+            parsedDb.appointments.forEach((app: any) => {
+                app.date = new Date(app.date);
+            });
+            db = parsedDb;
+            return;
+        }
+    } catch (e) {
+        console.error("Failed to load from localStorage", e);
+    }
 
-// Functions
-export const getCustomers = (): Customer[] => [...customers];
+    // If nothing in localStorage, initialize with seed data
+    db = getSeedData();
+    saveDb();
+}
+
+const getSeedData = (): DB => {
+    const today = new Date();
+    const customers: Customer[] = [
+        { id: 1, name: 'Juan Pérez', email: 'juan.perez@email.com', phone: '555-0101', password: 'password123' },
+        { id: 2, name: 'Carlos Gómez', email: 'cliente@email.com', phone: '555-0102', password: 'cliente123' },
+        { id: 3, name: 'Ana Torres', email: 'ana.torres@email.com', phone: '555-0103', password: 'password123' },
+    ];
+    
+    const appointments: Appointment[] = [
+        // Past appointments
+        { id: 1, customerId: 2, service: services[0], barber: barbers[1], date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 7), time: '10:00' },
+        { id: 2, customerId: 1, service: services[2], barber: barbers[0], date: new Date(today.getFullYear(), today.getMonth(), today.getDate() - 3), time: '15:00' },
+        
+        // Future appointments
+        { id: 3, customerId: 3, service: services[4], barber: barbers[2], date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 2), time: '11:00' },
+        { id: 4, customerId: 2, service: services[1], barber: barbers[3], date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5), time: '16:00' },
+        { id: 5, customerId: 1, service: services[0], barber: barbers[1], date: new Date(today.getFullYear(), today.getMonth(), today.getDate() + 5), time: '12:00' },
+    ];
+
+    const inventory: InventoryItem[] = [
+        { id: 1, name: 'Cera Fijadora Fuerte', brand: 'StylePro', category: 'Fijadores', stock: 15, lowStockThreshold: 10 },
+        { id: 2, name: 'Aceite para Barba', brand: 'BeardLuxe', category: 'Cuidado Barba', stock: 8, lowStockThreshold: 10 },
+        { id: 3, name: 'Shampoo Anticaída', brand: 'ReviveHair', category: 'Shampoos', stock: 25, lowStockThreshold: 5 },
+        { id: 4, name: 'Gel de Afeitar', brand: 'Gillette', category: 'Afeitado', stock: 0, lowStockThreshold: 5 },
+        { id: 5, name: 'Tónico Capilar', brand: 'Vitality', category: 'Tratamientos', stock: 12, lowStockThreshold: 15 },
+    ];
+
+    const gallery: GalleryImage[] = [
+        { id: 1, src: 'https://picsum.photos/id/1062/500/500', alt: 'Fade con Textura', barberName: 'Alex "The Razor" Russo' },
+        { id: 2, src: 'https://picsum.photos/id/219/500/500', alt: 'Pompadour Moderno', barberName: 'Benjamin "Benny" Carter' },
+        { id: 3, src: 'https://picsum.photos/id/343/500/500', alt: 'Buzz Cut con Diseño', barberName: 'Carlos "Los" Ramirez' },
+        { id: 4, src: 'https://picsum.photos/id/447/500/500', alt: 'Corte Largo con Capas', barberName: 'David Chen' },
+    ];
+
+    return {
+        customers,
+        appointments,
+        inventory,
+        gallery,
+        nextIds: {
+            customer: 4,
+            appointment: 6,
+            inventory: 6,
+            gallery: 5,
+        }
+    };
+};
+
+// --- API Functions ---
+
+export const getCustomers = (): Customer[] => {
+    return [...db.customers];
+};
+
+export const findCustomerByEmail = (email: string): Customer | undefined => {
+    return db.customers.find(c => c.email.toLowerCase() === email.toLowerCase());
+};
 
 export const getAppointments = (): (Appointment & { customer?: Customer })[] => {
-    return appointments
-        .map(app => ({
-            ...app,
-            customer: customers.find(c => c.id === app.customerId),
-        }))
-        .sort((a, b) => a.date.getTime() - b.date.getTime());
+    return db.appointments.map(app => ({
+        ...app,
+        customer: db.customers.find(c => c.id === app.customerId)
+    })).sort((a,b) => a.date.getTime() - b.date.getTime());
 };
 
 export const getAppointmentsForCustomer = (customerId: number): Appointment[] => {
-    return appointments
-        .filter(app => app.customerId === customerId)
-        .sort((a, b) => b.date.getTime() - a.date.getTime()); // Most recent first
+    return db.appointments.filter(app => app.customerId === customerId)
+                         .sort((a,b) => b.date.getTime() - a.date.getTime());
 };
 
-export const addOrUpdateCustomer = (customerData: Omit<Customer, 'id'>): Customer => {
-    const existingCustomer = customers.find(c => c.email.toLowerCase() === customerData.email.toLowerCase());
+export const addOrUpdateCustomer = (customerData: Omit<Customer, 'id'>, id?: number): Customer => {
+    const existingCustomer = id ? db.customers.find(c => c.id === id) : db.customers.find(c => c.email.toLowerCase() === customerData.email.toLowerCase());
+
     if (existingCustomer) {
         Object.assign(existingCustomer, customerData);
+        saveDb();
         return existingCustomer;
     }
-    const newCustomer = { ...customerData, id: nextCustomerId++ };
-    customers.push(newCustomer);
+    
+    const newCustomer = { ...customerData, id: db.nextIds.customer++ };
+    db.customers.push(newCustomer);
+    saveDb();
     return newCustomer;
 };
 
 export const addAppointment = (appointmentData: Omit<Appointment, 'id'>): Appointment => {
-    const newAppointment = { ...appointmentData, id: nextAppointmentId++ };
-    appointments.push(newAppointment);
+    const newAppointment = { ...appointmentData, id: db.nextIds.appointment++ };
+    db.appointments.push(newAppointment);
+    saveDb();
     return newAppointment;
 };
 
 export const isTimeSlotTaken = (date: Date, time: string, barberName: string): boolean => {
-    return appointments.some(app => 
+    return db.appointments.some(app => 
         app.barber.name === barberName &&
         app.time === time &&
         app.date.getFullYear() === date.getFullYear() &&
@@ -105,60 +147,72 @@ export const isTimeSlotTaken = (date: Date, time: string, barberName: string): b
     );
 };
 
-export const getInventoryItems = (): InventoryItem[] => [...inventory];
+export const getInventoryItems = (): InventoryItem[] => {
+    return [...db.inventory];
+};
 
 export const addInventoryItem = (itemData: Omit<InventoryItem, 'id'>): InventoryItem => {
-    const newItem = { ...itemData, id: nextInventoryId++ };
-    inventory.push(newItem);
+    const newItem = { ...itemData, id: db.nextIds.inventory++ };
+    db.inventory.push(newItem);
+    saveDb();
     return newItem;
 };
 
 export const updateInventoryItem = (id: number, updates: Partial<Omit<InventoryItem, 'id'>>): InventoryItem | undefined => {
-    const item = inventory.find(i => i.id === id);
+    const item = db.inventory.find(i => i.id === id);
     if (item) {
         Object.assign(item, updates);
+        saveDb();
     }
     return item;
 };
 
 export const deleteInventoryItem = (id: number): void => {
-    inventory = inventory.filter(i => i.id !== id);
+    db.inventory = db.inventory.filter(i => i.id !== id);
+    saveDb();
 };
 
-export const getGalleryImages = (): GalleryImage[] => [...gallery];
+export const getGalleryImages = (): GalleryImage[] => {
+    return [...db.gallery];
+};
+export const getPublicGalleryImages = (): GalleryImage[] => {
+    return [...db.gallery];
+};
 
 export const addGalleryImage = (imageData: Omit<GalleryImage, 'id'>): GalleryImage => {
-    const newImage = { ...imageData, id: nextGalleryId++ };
-    gallery.unshift(newImage); // Add to the beginning to show newest first
+    const newImage = { ...imageData, id: db.nextIds.gallery++ };
+    db.gallery.push(newImage);
+    saveDb();
     return newImage;
 };
 
 export const deleteGalleryImage = (id: number): void => {
-    gallery = gallery.filter(img => img.id !== id);
-};
-
-export const getPublicGalleryImages = (): GalleryImage[] => {
-    // Devuelve las últimas 8 imágenes, con la más nueva primero.
-    return [...gallery].slice(0, 8);
+    db.gallery = db.gallery.filter(i => i.id !== id);
+    saveDb();
 };
 
 // --- Sales Metrics ---
 export const getSalesMetrics = () => {
-    const totalRevenue = appointments.reduce((acc, app) => {
-        const priceString = app.service.price.replace('$', '').replace('+', '').trim();
-        const price = parseInt(priceString, 10);
+    const pastAppointments = db.appointments.filter(app => app.date < new Date());
+    
+    const totalRevenue = pastAppointments.reduce((acc, app) => {
+        const price = parseFloat(app.service.price.replace('$', '').replace('+', ''));
         return acc + (isNaN(price) ? 0 : price);
     }, 0);
 
-    const serviceCounts = appointments.reduce((acc, app) => {
+    const serviceCounts = pastAppointments.reduce((acc, app) => {
         acc[app.service.name] = (acc[app.service.name] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
-    const barberCounts = appointments.reduce((acc, app) => {
+    const barberCounts = pastAppointments.reduce((acc, app) => {
         acc[app.barber.name] = (acc[app.barber.name] || 0) + 1;
         return acc;
     }, {} as Record<string, number>);
 
     return { totalRevenue, serviceCounts, barberCounts };
 };
+
+
+// Initialize the DB on module load
+loadDb();

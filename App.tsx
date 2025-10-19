@@ -4,7 +4,6 @@ import { BookingProvider } from './context/BookingContext';
 import { AdminDashboard } from './components/admin/AdminDashboard';
 import { Header } from './components/Header';
 import { HeroSection } from './components/HeroSection';
-import { HowItWorks } from './components/HowItWorks';
 import { StyleRecommender } from './components/StyleRecommender';
 import { Services } from './components/Services';
 import { Barbers } from './components/Barbers';
@@ -34,7 +33,6 @@ const App: React.FC = () => {
         <Header onProfileClick={() => setIsProfileOpen(true)} />
         <main>
           <HeroSection />
-          <HowItWorks />
           <StyleRecommender />
           <Services />
           <Barbers />

@@ -3,6 +3,44 @@ import { analyzeFace, getRecommendations, generateExampleImage, simulateHaircut 
 import type { FaceAnalysis, HaircutRecommendation, Preferences } from '../types';
 import { UploadIcon, CameraIcon, MagicWandIcon, ScissorsIcon, DownloadIcon, HeartIcon } from './icons';
 import { Spinner } from './Spinner';
+import { HowItWorks } from './HowItWorks';
+
+const SimulationResultView: React.FC<{ original: string; simulated: string }> = ({ original, simulated }) => {
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = simulated;
+    link.download = 'mi-nuevo-look.png';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div className="mt-4 border-t border-gray-800 pt-4">
+      <h3 className="text-xl font-bold text-center text-white mb-4">¡Tu Nuevo Look!</h3>
+      <div className="grid grid-cols-2 gap-4 items-start">
+        <div className="text-center">
+          <h4 className="text-sm font-semibold text-gray-400 mb-2">Original</h4>
+          <img src={original} alt="Original user" className="rounded-lg w-full aspect-square object-cover" />
+        </div>
+        <div className="text-center">
+          <h4 className="text-sm font-semibold text-gray-300 mb-2">Simulación</h4>
+          <img src={simulated} alt="Simulated haircut" className="rounded-lg w-full aspect-square object-cover" />
+        </div>
+      </div>
+      <div className="mt-4 text-center">
+        <button
+          onClick={handleDownload}
+          className="inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors"
+        >
+          <DownloadIcon className="w-5 h-5" />
+          <span>Descargar Look</span>
+        </button>
+      </div>
+    </div>
+  );
+};
+
 
 export const StyleRecommender: React.FC = () => {
   const [userImage, setUserImage] = useState<File | null>(null);
@@ -10,20 +48,21 @@ export const StyleRecommender: React.FC = () => {
   const [faceAnalysis, setFaceAnalysis] = useState<FaceAnalysis | null>(null);
   const [recommendations, setRecommendations] = useState<HaircutRecommendation[]>([]);
   const [preferences, setPreferences] = useState<Preferences>({ length: 'any', style: 'any' });
-  const [isLoading, setIsLoading] = useState(false);
+  
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+  const [simulatingStyle, setSimulatingStyle] = useState<string | null>(null);
+
   const [loadingMessage, setLoadingMessage] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [simulatedImage, setSimulatedImage] = useState<string | null>(null);
+  const [simulationResult, setSimulationResult] = useState<{ styleName: string; imageUrl: string } | null>(null);
+
   const [isCameraOpen, setIsCameraOpen] = useState(false);
-  const [showSuccessHighlight, setShowSuccessHighlight] = useState(false);
   const [favoriteStyles, setFavoriteStyles] = useState<string[]>([]);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const resultsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Load favorites from local storage on component mount
     try {
       const savedFavorites = localStorage.getItem('favoriteStyles');
       if (savedFavorites) {
@@ -43,25 +82,15 @@ export const StyleRecommender: React.FC = () => {
     localStorage.setItem('favoriteStyles', JSON.stringify(updatedFavorites));
   };
 
-  useEffect(() => {
-    if (simulatedImage && resultsRef.current) {
-      resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setShowSuccessHighlight(true);
-      const timer = setTimeout(() => {
-        setShowSuccessHighlight(false);
-      }, 4000); // Highlight for 4 seconds
-      return () => clearTimeout(timer);
-    }
-  }, [simulatedImage]);
-
   const resetState = () => {
     setUserImage(null);
     setUserImagePreview(null);
     setFaceAnalysis(null);
     setRecommendations([]);
-    setIsLoading(false);
+    setIsAnalysisLoading(false);
     setError(null);
-    setSimulatedImage(null);
+    setSimulationResult(null);
+    setSimulatingStyle(null);
   };
 
   const handleImageChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -125,11 +154,11 @@ export const StyleRecommender: React.FC = () => {
   const handleAnalysis = useCallback(async () => {
     if (!userImage) return;
 
-    setIsLoading(true);
+    setIsAnalysisLoading(true);
     setError(null);
     setFaceAnalysis(null);
     setRecommendations([]);
-    setSimulatedImage(null);
+    setSimulationResult(null);
 
     try {
       setLoadingMessage('Analizando tus rasgos faciales...');
@@ -142,7 +171,7 @@ export const StyleRecommender: React.FC = () => {
       if (recs.length === 0) {
         setRecommendations([]);
         setError("No pudimos encontrar recomendaciones para tu foto. Intenta con otra imagen.");
-        setIsLoading(false);
+        setIsAnalysisLoading(false);
         return;
       }
       
@@ -166,45 +195,36 @@ export const StyleRecommender: React.FC = () => {
       setRecommendations(finalRecs);
 
     } catch (err) {
-      setError('Hubo un error durante el proceso de recomendación. Por favor, intenta con otra foto.');
+      const errorMessage = err instanceof Error ? err.message : 'Ocurrió un error desconocido durante la recomendación.';
+      setError(`Error: ${errorMessage} Por favor, intenta con otra foto.`);
       console.error(err);
       setFaceAnalysis(null);
       setRecommendations([]);
     } finally {
-      setIsLoading(false);
+      setIsAnalysisLoading(false);
       setLoadingMessage('');
     }
   }, [userImage, preferences]);
 
   const handleSimulate = async (haircutName: string) => {
       if (!userImage) return;
-      setIsLoading(true);
-      setSimulatedImage(null);
-      setLoadingMessage(`Simulando el corte '${haircutName}' en tu foto...`);
+      setSimulatingStyle(haircutName);
+      setSimulationResult(null);
+      setLoadingMessage(`Simulando el corte '${haircutName}'...`);
       setError(null);
       
       try {
         const resultImage = await simulateHaircut(userImage, haircutName);
-        setSimulatedImage(resultImage);
+        setSimulationResult({ styleName: haircutName, imageUrl: resultImage });
       } catch (err) {
-          setError('No se pudo simular el corte. Por favor, intenta de nuevo.');
+          const errorMessage = err instanceof Error ? err.message : 'No se pudo simular el corte.';
+          setError(`Error de simulación: ${errorMessage} Por favor, intenta de nuevo.`);
           console.error(err);
       } finally {
-          setIsLoading(false);
+          setSimulatingStyle(null);
           setLoadingMessage('');
       }
   };
-
-  const handleDownload = () => {
-    if (!simulatedImage) return;
-    const link = document.createElement('a');
-    link.href = simulatedImage;
-    link.download = 'mi-nuevo-look.png';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
 
   return (
     <section id="recommender" className="py-20 bg-gray-950/50">
@@ -222,17 +242,13 @@ export const StyleRecommender: React.FC = () => {
         </div>
       )}
       <div className="container mx-auto px-6">
-        <div className="text-center mb-12">
-          <h2 className="text-3xl md:text-4xl font-bold font-playfair text-white">Asesor de Estilo con IA</h2>
-          <p className="text-gray-400 mt-2 max-w-2xl mx-auto">Sube una foto clara de tu rostro y deja que nuestra IA te encuentre el peinado perfecto.</p>
-        </div>
+        <HowItWorks />
         
         <div className="max-w-4xl mx-auto">
-          {/* Uploader */}
           <div className="bg-gray-950 rounded-lg p-8 shadow-2xl mb-8">
-            <div className="grid md:grid-cols-2 gap-8 items-center">
+            <div className="grid md:grid-cols-2 gap-8 items-start">
               <div>
-                <label htmlFor="photo-upload" className="block text-lg font-semibold text-white mb-2">Paso 1: Sube tu Foto</label>
+                <label htmlFor="photo-upload" className="block text-lg font-semibold text-white mb-2">Sube o Toma una Foto</label>
                 <p className="text-gray-400 mb-4 text-sm">Para mejores resultados, usa una foto de frente con buena iluminación y sin gafas de sol.</p>
                 <div className="mt-4 flex flex-wrap gap-4">
                     <input type="file" id="photo-upload" accept="image/*" className="hidden" onChange={handleImageChange} />
@@ -259,14 +275,14 @@ export const StyleRecommender: React.FC = () => {
             </div>
              {userImage && !faceAnalysis && (
                 <div className="mt-6 text-center">
-                    <button onClick={handleAnalysis} disabled={isLoading} className="bg-gray-200 hover:bg-white text-black font-bold py-3 px-8 rounded-lg text-lg transition-transform transform hover:scale-105 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:text-gray-400">
-                        {isLoading ? 'Analizando...' : 'Analizar mi Rostro y Recomendar'}
+                    <button onClick={handleAnalysis} disabled={isAnalysisLoading} className="bg-gray-200 hover:bg-white text-black font-bold py-3 px-8 rounded-lg text-lg transition-transform transform hover:scale-105 disabled:bg-gray-700 disabled:cursor-not-allowed disabled:text-gray-400">
+                        {isAnalysisLoading ? 'Analizando...' : 'Analizar mi Rostro y Recomendar'}
                     </button>
                 </div>
             )}
           </div>
 
-          {isLoading && <div className="flex justify-center my-8"><Spinner message={loadingMessage} /></div>}
+          {isAnalysisLoading && <div className="flex justify-center my-8"><Spinner message={loadingMessage} /></div>}
           {error && <div className="text-center my-4 p-4 bg-red-900/50 border border-red-700 text-red-300 rounded-lg">{error}</div>}
 
           {faceAnalysis && recommendations.length > 0 && (
@@ -316,43 +332,25 @@ export const StyleRecommender: React.FC = () => {
                         
                         <button 
                             onClick={() => handleSimulate(rec.name)} 
-                            className="w-full flex items-center justify-center gap-2 mt-auto bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm"
-                            disabled={isLoading}
+                            className="w-full flex items-center justify-center gap-2 mt-auto bg-gray-800 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg transition-colors text-sm disabled:bg-gray-700 disabled:cursor-not-allowed disabled:text-gray-400"
+                            disabled={simulatingStyle !== null}
                         >
                             <MagicWandIcon className="w-4 h-4" />
-                            <span>Probar este Look</span>
+                            <span>{simulatingStyle === rec.name ? 'Generando...' : 'Probar este Look'}</span>
                         </button>
+
+                        {simulatingStyle === rec.name && (
+                          <div className="mt-4 text-center">
+                              <Spinner message={loadingMessage} />
+                          </div>
+                        )}
+
+                        {simulationResult && simulationResult.styleName === rec.name && userImagePreview && (
+                            <SimulationResultView original={userImagePreview} simulated={simulationResult.imageUrl} />
+                        )}
                     </div>
                 ))}
               </div>
-
-              {simulatedImage && (
-                  <div 
-                    ref={resultsRef}
-                    className={`mt-8 border-t border-gray-800 pt-8 p-4 rounded-lg transition-all duration-500 ${showSuccessHighlight ? 'ring-4 ring-gray-400 shadow-2xl shadow-gray-400/20' : 'ring-0 ring-transparent'}`}
-                    >
-                      <h3 className="text-2xl font-bold text-center text-white mb-2">¡Tu Nuevo Look!</h3>
-                      {showSuccessHighlight && <p className="text-center text-gray-300 mb-4 animate-pulse">¡Simulación generada con éxito!</p>}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center mt-4">
-                          <div className='text-center'>
-                            <h4 className='font-semibold mb-2'>Original</h4>
-                            <img src={userImagePreview!} alt="Original user" className="rounded-lg mx-auto max-h-80" />
-                          </div>
-                          <div className='text-center'>
-                            <h4 className='font-semibold mb-2'>Simulación</h4>
-                            <img src={simulatedImage} alt="Simulated haircut" className="rounded-lg mx-auto max-h-80" />
-                            <button
-                                onClick={handleDownload}
-                                className="mt-4 inline-flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded-lg transition-colors"
-                            >
-                                <DownloadIcon className="w-5 h-5" />
-                                <span>Descargar Look</span>
-                            </button>
-                          </div>
-                      </div>
-                  </div>
-              )}
-
             </div>
           )}
         </div>
